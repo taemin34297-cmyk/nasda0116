@@ -1,6 +1,7 @@
 package com.example.nasda.controller;
 
 import com.example.nasda.domain.UserEntity;
+import com.example.nasda.service.EmailService;
 import com.example.nasda.service.LoginService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,7 +22,10 @@ import com.example.nasda.service.UserService;
 
 
 import jakarta.servlet.http.HttpSession;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
 import java.util.List;
+import java.util.UUID;
 
 @Controller
 @RequestMapping("/user")
@@ -32,6 +36,7 @@ public class UserController {
     private final UserService userService;
     private final PostService postService;
     private final CommentRepository commentRepository;
+    private final EmailService emailService;
 
     @GetMapping("/login")
     public String loginForm() {
@@ -62,6 +67,33 @@ public class UserController {
         model.addAttribute("myPosts", myPosts); // ✅ 절대 null이면 안 됨
 
         return "user/mypage";
+    }
+    @PostMapping("/find-password")
+    public String findPassword(@RequestParam String loginId,
+                               @RequestParam String email,
+                               RedirectAttributes redirectAttributes) {
+        try {
+            // 1. 유저 정보 일치 확인
+            UserEntity user = userService.findByLoginId(loginId)
+                    .filter(u -> u.getEmail().equals(email))
+                    .orElseThrow(() -> new RuntimeException("일치하는 사용자 정보가 없습니다."));
+
+            // 2. 임시 비밀번호 생성 (8자리 랜덤 문자열)
+            String tempPassword = UUID.randomUUID().toString().substring(0, 8);
+
+            // 3. DB 업데이트
+            userService.updatePassword(user.getUserId(), tempPassword);
+
+            // 4. 메일 발송
+            emailService.sendTemporaryPassword(email, tempPassword);
+
+            redirectAttributes.addFlashAttribute("message", "이메일로 임시 비밀번호를 발송했습니다.");
+            return "redirect:/user/login";
+
+        } catch (Exception e) {
+            redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
+            return "redirect:/user/find-password";
+        }
     }
 
     @PostMapping("/login")
@@ -135,6 +167,9 @@ public class UserController {
 
         return "user/my-reports"; // my-reports.html 파일을 보여줌
     }
+    @GetMapping("/find-password")
+    public void findPasswordForm() {
+    }
     // ✅ 추가: 마이페이지 프로필 업데이트 (비밀번호 확인 포함)
     @PostMapping("/mypage/update")
     public String updateProfile(@RequestParam String nickname,
@@ -172,6 +207,7 @@ public class UserController {
         return "redirect:/user/mypage";
     }
 
+
     @PostMapping("/signup")
     public String signup(@RequestParam String loginId,
                          @RequestParam String password,
@@ -187,6 +223,7 @@ public class UserController {
             model.addAttribute("errorMessage", e.getMessage());
             return "user/signup";
         }
+
 
     }
 }

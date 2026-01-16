@@ -47,6 +47,13 @@ public class UserService {
             throw new IllegalStateException("이미 사용 중인 닉네임입니다.");
         }
     }
+    @Transactional
+    public void updatePassword(Integer userId, String rawPassword) {
+        UserEntity user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+        // 신규 비밀번호 암호화 저장
+        user.setPassword(passwordEncoder.encode(rawPassword));
+    }
 
     /**
      * 프로필 수정 로직
@@ -62,7 +69,6 @@ public class UserService {
 
         return user; // Dirty Checking으로 자동 저장됨
     }
-
     /**
      * 계정 탈퇴 로직
      * [수정] 파라미터 타입을 Integer로 변경
